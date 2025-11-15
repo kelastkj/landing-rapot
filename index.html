@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, follow">
+    <meta name="description" content="Panel Erapor SMKN 1 Telagasari · pantau status versi E-Rapor terbaru dan akses sesuai tahun ajaran.">
+    <meta property="og:title" content="Panel Erapor SMKN 1 Telagasari">
+    <meta property="og:description" content="Panel Erapor SMKN 1 Telagasari · pantau status versi E-Rapor terbaru dan akses sesuai tahun ajaran.">
+    <meta property="og:type" content="website">
+    <title>Panel Erapor SMKN 1 Telagasari</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo-container">
+                <img src="https://skl.smkn1telagasari.sch.id/logo.png" alt="Logo SMKN 1 Telagasari" class="school-logo">
+            </div>
+            <div class="header-text">
+                <h1>Panel Erapor</h1>
+                <p>SMKN 1 Telagasari</p>
+            </div>
+            <div class="header-actions">
+                <nav class="header-nav erapor-nav">
+                    <a href="https://smkn1telagasari.web.id/" class="header-link">Portal Utama</a>
+                    <a href="#erapor" class="header-link" data-scroll="erapor">Pilihan E-Rapor</a>
+                </nav>
+                <button type="button" class="theme-toggle" aria-label="Aktifkan mode gelap" title="Mode gelap">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-content erapor-main" id="erapor">
+        <div class="erapor-panel" aria-live="polite">
+            <div class="erapor-panel-card" id="erapor-panel-card">
+                <div class="panel-headline">
+                    <h3>Akses E-Rapor</h3>
+                    <p>Pilih tahun ajaran dan semester. Portal sesuai pilihan muncul tepat di bawah bersama tombol buka.</p>
+                </div>
+                <div class="account-info" role="note">
+                    <i class="fas fa-info-circle" aria-hidden="true"></i>
+                    <p><strong>Akun & aplikasi berbeda:</strong> Tahun ajaran 2025/2026 memakai aplikasi E-Rapor 2025 (format Kurikulum Merdeka) dengan akun baru. Tahun sebelumnya tetap memakai aplikasi E-Rapor SMK lama beserta akun lamanya.</p>
+                </div>
+                <div class="panel-controls">
+                    <div class="form-group">
+                        <label for="erapor-year">Tahun ajaran</label>
+                        <select id="erapor-year">
+                            <option value="2025/2026" selected>2025/2026 · Aktif</option>
+                            <option value="2024/2025">2024/2025</option>
+                            <option value="2023/2024">2023/2024</option>
+                            <option value="2022/2023">2022/2023</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="erapor-semester">Semester</label>
+                        <select id="erapor-semester">
+                            <option value="ganjil" selected>Semester Ganjil</option>
+                            <option value="genap">Semester Genap</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="erapor-result is-current" id="erapor-result">
+                    <h3 id="erapor-result-title">2025/2026 • Semester Ganjil</h3>
+                    <span class="app-status status-checking" id="erapor-result-status" data-status-url="https://rapor.smkn1telagasari.web.id/" data-status-allow-opaque="false">Memeriksa status…</span>
+                    <div class="result-actions">
+                        <a href="https://rapor.smkn1telagasari.web.id/" class="erapor-action" id="erapor-result-link" target="_blank" rel="noopener" data-loading-link data-loading-text="Menghubungkan ke portal 2025/2026 • Semester Ganjil…" data-loading-target="_blank">
+                            <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                            <span>Buka E-Rapor</span>
+                        </a>
+                        <button type="button" class="erapor-copy" id="erapor-copy-link" data-copy-default="Salin Link" data-copy-success="Tautan disalin" data-copy-fail="Salin manual" aria-live="polite">
+                            <i class="fas fa-copy" aria-hidden="true"></i>
+                            <span data-copy-label>Salin Link</span>
+                        </button>
+                    </div>
+                    <p class="result-hint" id="erapor-result-note">Klik untuk membuka portal pada tab baru, lalu masuk dengan akun yang sudah dibagikan.</p>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="footer">
+        <p class="footer-brand">SMKN 1 Telagasari · NPSN 30305069</p>
+        <p class="footer-note">© 2025 Ruang Sinergi membantu akses layanan digital sekolah.</p>
+    </footer>
+
+    <div id="redirect-overlay" class="redirect-overlay" aria-hidden="true">
+        <div class="redirect-box" role="status" aria-live="polite">
+            <span class="redirect-spinner" aria-hidden="true"></span>
+            <p class="redirect-message" data-loading-message>Mengarahkan ke layanan…</p>
+            <small class="redirect-note">Jendela baru akan terbuka otomatis.</small>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
