@@ -1,9 +1,15 @@
 const THEME_STORAGE_KEY = 'rs-theme-preference';
 const STATUS_CHECK_TIMEOUT = 8000;
+const STATUS_AUTO_REFRESH_INTERVAL = 30000;
 const STATUS_TEXT = {
     checking: 'Memeriksa status…',
     online: 'Terhubung',
     offline: 'Tidak Dapat Diakses'
+};
+const STATUS_DETAIL_MESSAGES = {
+    checking: 'Sedang memeriksa koneksi portal.',
+    online: 'Portal merespons normal dan siap digunakan.',
+    offline: 'Portal tidak merespons. Bisa karena pemeliharaan, firewall, atau gangguan koneksi.'
 };
 const ERAPOR_DEFAULT_YEAR = '2025/2026';
 const ERAPOR_PORTAL_HINT = 'Klik untuk membuka portal pada tab baru, lalu masuk dengan akun yang sudah dibagikan.';
@@ -44,6 +50,8 @@ const ERAPOR_CONFIG = {
 };
 const serviceStatusCache = typeof Map === 'function' ? new Map() : null;
 const serviceStatusStore = serviceStatusCache ? null : {};
+const statusDetailStore = {};
+let statusRefreshIntervalId = null;
 
 function applyThemePreference(theme){
     const nextTheme = theme === 'dark' ? 'dark' : 'light';
@@ -144,6 +152,7 @@ function releaseModalFocus(modal){
 function openGenericModal(modal, triggerEl, focusTarget){
     if (!modal) return;
     modal.classList.add('active');
+    modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
     applyModalFocus(modal, triggerEl, focusTarget);
 }
@@ -151,6 +160,15 @@ function openGenericModal(modal, triggerEl, focusTarget){
 function closeGenericModal(modal){
     if (!modal) return;
     modal.classList.remove('active');
+    modal.setAttribute('aria-hidden', 'true');
+    const triggerId = modal.dataset ? modal.dataset.triggerElementId : undefined;
+    if (triggerId){
+        const triggerEl = document.getElementById(triggerId);
+        if (triggerEl){
+            triggerEl.setAttribute('aria-expanded', 'false');
+        }
+        modal.dataset.triggerElementId = '';
+    }
     releaseModalFocus(modal);
     if (!document.querySelector('.modal.active')){
         document.body.style.overflow = '';
@@ -234,6 +252,13 @@ function setupLoadingLinks(){
     });
     links.forEach(link => {
         link.addEventListener('click', function(event){
+            if (this.classList.contains('is-disabled') || this.getAttribute('aria-disabled') === 'true'){
+                event.preventDefault();
+                if (this.id){
+                    showStatusDetailModal(this.id, this);
+                }
+                return;
+            }
             const targetUrl = this.getAttribute('href');
             if (!targetUrl || targetUrl === '#') return;
             event.preventDefault();
@@ -359,12 +384,25 @@ function setupEraporSelector(){
 
         statusEl.setAttribute('data-status-url', config.url);
         statusEl.setAttribute('data-status-allow-opaque', config.allowOpaque === true ? 'true' : 'false');
+        statusEl.setAttribute('data-status-action', actionEl.id || '');
+        primeStatusDetailContext(actionEl.id || '', {
+            serviceName: config.serviceName,
+            summary: config.summary,
+            note: config.note,
+            url: config.url,
+            label: metaLabel,
+            year: selectedYear,
+            semester: semesterLabel
+        });
         setStatusIndicator(statusEl, 'checking');
+        attachStatusDetailIndicator(statusEl, actionEl.id || '');
 
         actionEl.href = config.url;
         actionEl.setAttribute('data-loading-text', `Menghubungkan ke portal ${metaLabel}…`);
         actionEl.setAttribute('aria-label', `${actionLabel} ${metaLabel}`);
         actionEl.setAttribute('title', actionLabel);
+        actionEl.dataset.originalTitle = actionLabel;
+        actionEl.setAttribute('aria-expanded', 'false');
         const labelSpan = actionEl.querySelector('span');
         if (labelSpan){
             labelSpan.textContent = actionLabel;
@@ -532,6 +570,274 @@ function setStatusIndicator(el, state){
     el.classList.remove('status-online','status-offline','status-checking');
     el.classList.add(`status-${normalized}`);
     el.textContent = STATUS_TEXT[normalized] || STATUS_TEXT.checking;
+    el.setAttribute('data-status-state', normalized);
+    if (el.hasAttribute('data-status-detail')){
+        const primary = STATUS_TEXT[normalized] || STATUS_TEXT.checking;
+        const detail = STATUS_DETAIL_MESSAGES[normalized] || STATUS_DETAIL_MESSAGES.checking;
+        el.setAttribute('aria-label', `${primary}. ${detail} Klik untuk detail status.`);
+        el.setAttribute('title', 'Klik untuk melihat detail status layanan');
+    }
+    syncStatusActionState(el, normalized);
+}
+
+function primeStatusDetailContext(actionId, context){
+    if (!actionId) return;
+    const existing = statusDetailStore[actionId] || {};
+    const isDifferentService = context && context.url && existing.url && existing.url !== context.url;
+    const nextRecord = Object.assign({}, existing, context);
+    if (!nextRecord.state || isDifferentService){
+        nextRecord.state = 'checking';
+    }
+    if (isDifferentService){
+        nextRecord.lastChecked = null;
+        nextRecord.lastResultState = null;
+    }
+    statusDetailStore[actionId] = nextRecord;
+    renderStatusSnapshot(actionId);
+}
+
+function updateStatusDetailState(actionId, state){
+    if (!actionId) return null;
+    const record = statusDetailStore[actionId] || {};
+    record.state = state;
+    if (state !== 'checking'){
+        const now = Date.now();
+        record.lastChecked = now;
+        record.lastResultState = state;
+    }
+    statusDetailStore[actionId] = record;
+    return record;
+}
+
+function getStatusDetailRecord(actionId){
+    if (!actionId) return null;
+    return statusDetailStore[actionId] || null;
+}
+
+function formatStatusDetailTimestamp(timestamp){
+    if (!timestamp) return '';
+    try {
+        return new Date(timestamp).toLocaleString('id-ID', { dateStyle: 'long', timeStyle: 'medium' });
+    } catch (err){
+        try {
+            return new Date(timestamp).toLocaleString();
+        } catch (e){
+            return `${timestamp}`;
+        }
+    }
+}
+
+function renderStatusDetailModal(actionId){
+    const modal = document.getElementById('status-modal');
+    if (!modal) return { modal: null, focusTarget: null };
+    const record = getStatusDetailRecord(actionId) || {};
+    const state = record.state === 'online' || record.state === 'offline' ? record.state : 'checking';
+    const metaEl = document.getElementById('status-modal-meta');
+    if (metaEl){
+        const metaParts = [];
+        if (record.serviceName) metaParts.push(record.serviceName);
+        if (record.label) metaParts.push(record.label);
+        metaEl.textContent = metaParts.length ? metaParts.join(' • ') : 'Portal E-Rapor';
+    }
+    const stateEl = document.getElementById('status-modal-state');
+    if (stateEl){
+        stateEl.classList.remove('is-online','is-offline','is-checking');
+        stateEl.classList.add(`is-${state}`);
+        const iconClass = state === 'online' ? 'fa-circle-check' : state === 'offline' ? 'fa-circle-xmark' : 'fa-arrows-rotate fa-spin';
+        const label = STATUS_TEXT[state] || STATUS_TEXT.checking;
+        stateEl.innerHTML = `<i class="fas ${iconClass}" aria-hidden="true"></i><span>${label}</span>`;
+    }
+    const descEl = document.getElementById('status-modal-description');
+    if (descEl){
+        descEl.textContent = record.summary || 'Portal ini digunakan untuk pelaporan nilai sesuai pilihan Anda.';
+    }
+    const noteEl = document.getElementById('status-modal-note');
+    if (noteEl){
+        noteEl.innerHTML = '';
+        const infoPara = document.createElement('p');
+        infoPara.textContent = STATUS_DETAIL_MESSAGES[state] || STATUS_DETAIL_MESSAGES.checking;
+        noteEl.appendChild(infoPara);
+        if (record.note){
+            const notePara = document.createElement('p');
+            notePara.textContent = record.note;
+            noteEl.appendChild(notePara);
+        }
+    }
+    const urlEl = document.getElementById('status-modal-url');
+    if (urlEl){
+        urlEl.innerHTML = '';
+        const displayUrl = record.url || '';
+        if (displayUrl){
+            urlEl.append('Alamat portal: ');
+            const span = document.createElement('span');
+            span.textContent = displayUrl;
+            urlEl.appendChild(span);
+        } else {
+            urlEl.textContent = 'Alamat portal belum tersedia.';
+        }
+    }
+    const lastCheckedEl = document.getElementById('status-modal-last-checked');
+    if (lastCheckedEl){
+        lastCheckedEl.textContent = record.lastChecked ? formatStatusDetailTimestamp(record.lastChecked) : 'Belum ada data pengecekan.';
+    }
+    const lastResultEl = document.getElementById('status-modal-last-result');
+    if (lastResultEl){
+        if (record.lastResultState){
+            const statusName = STATUS_TEXT[record.lastResultState] || record.lastResultState;
+            const timestampText = record.lastChecked ? formatStatusDetailTimestamp(record.lastChecked) : '';
+            lastResultEl.textContent = timestampText ? `Status terakhir yang tercatat: ${statusName} • ${timestampText}` : `Status terakhir yang tercatat: ${statusName}`;
+        } else {
+            lastResultEl.textContent = 'Belum ada riwayat status tersimpan.';
+        }
+    }
+    const openLink = document.getElementById('status-modal-open-link');
+    if (openLink){
+        const href = record.url || '#';
+        openLink.href = href;
+        if (state === 'online' && href && href !== '#'){
+            openLink.classList.remove('is-disabled');
+            openLink.removeAttribute('aria-disabled');
+            openLink.setAttribute('title', record.label ? `Buka ${record.label}` : 'Buka portal E-Rapor');
+        } else {
+            openLink.classList.add('is-disabled');
+            openLink.setAttribute('aria-disabled', 'true');
+            openLink.setAttribute('title', 'Portal belum dapat dibuka.');
+        }
+    }
+    const refreshBtn = document.getElementById('status-modal-refresh');
+    if (refreshBtn){
+        refreshBtn.dataset.statusTarget = actionId || '';
+    }
+    modal.setAttribute('data-active-action', actionId || '');
+    return {
+        modal,
+        focusTarget: openLink && !openLink.classList.contains('is-disabled') ? openLink : document.getElementById('status-modal-refresh')
+    };
+}
+
+function renderStatusSnapshot(actionId){
+    const container = document.getElementById('status-summary');
+    if (!container) return;
+    const badge = document.getElementById('summary-status-badge');
+    const desc = document.getElementById('summary-status-desc');
+    const meta = document.getElementById('summary-meta');
+    const lastCheckedEl = document.getElementById('summary-last-checked');
+    const lastResultEl = document.getElementById('summary-last-result');
+    const autoRefreshEl = document.getElementById('summary-auto-refresh');
+    const iconEl = document.getElementById('summary-status-icon');
+    const record = actionId ? (getStatusDetailRecord(actionId) || {}) : {};
+    const state = record.state === 'online' || record.state === 'offline' ? record.state : 'checking';
+
+    container.dataset.statusState = state;
+
+    if (badge){
+        badge.classList.remove('status-online','status-offline','status-checking');
+        badge.classList.add(`status-${state}`);
+        badge.textContent = STATUS_TEXT[state] || STATUS_TEXT.checking;
+    }
+    if (desc){
+        desc.textContent = STATUS_DETAIL_MESSAGES[state] || STATUS_DETAIL_MESSAGES.checking;
+    }
+    if (meta){
+        meta.textContent = record.label || 'Pilih tahun ajaran untuk melihat detail portal.';
+    }
+    if (lastCheckedEl){
+        lastCheckedEl.textContent = record.lastChecked ? formatStatusDetailTimestamp(record.lastChecked) : 'Menunggu hasil pertama';
+    }
+    if (lastResultEl){
+        if (record.lastResultState){
+            const statusName = STATUS_TEXT[record.lastResultState] || record.lastResultState;
+            lastResultEl.textContent = `Riwayat terakhir: ${statusName}`;
+        } else {
+            lastResultEl.textContent = 'Status terakhir belum tersedia.';
+        }
+    }
+    if (autoRefreshEl){
+        const seconds = Math.max(1, Math.round(STATUS_AUTO_REFRESH_INTERVAL / 1000));
+        autoRefreshEl.textContent = `${seconds} detik`;
+    }
+    if (iconEl){
+        const iconMap = {
+            online: 'fa-circle-check',
+            offline: 'fa-triangle-exclamation',
+            checking: 'fa-arrows-rotate'
+        };
+        const baseClass = iconMap[state] || iconMap.checking;
+        iconEl.className = `fas ${baseClass}`;
+        if (state === 'checking'){
+            iconEl.classList.add('fa-spin');
+        }
+        const colorMap = {
+            online: '#16a34a',
+            offline: '#dc2626',
+            checking: getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#1d4ed8'
+        };
+        const resolvedColor = colorMap[state] || colorMap.checking;
+        iconEl.style.color = resolvedColor.trim();
+    }
+}
+
+function showStatusDetailModal(actionId, triggerEl){
+    const { modal, focusTarget } = renderStatusDetailModal(actionId);
+    if (!modal) return;
+    if (triggerEl instanceof HTMLElement && triggerEl.id){
+        triggerEl.setAttribute('aria-expanded', 'true');
+        modal.dataset.triggerElementId = triggerEl.id;
+    }
+    openGenericModal(modal, triggerEl, focusTarget || modal.querySelector('.status-modal-refresh'));
+}
+
+function attachStatusDetailIndicator(statusEl, actionId){
+    if (!statusEl || !actionId) return;
+    if (statusEl.dataset.statusDetailBound === 'true') return;
+    const handler = (event) => {
+        const isActivationKey = event.key === 'Enter' || event.key === ' ' || event.key === 'Spacebar' || event.key === 'Space';
+        if (event.type === 'click' || (event.type === 'keydown' && isActivationKey)){
+            event.preventDefault();
+            showStatusDetailModal(actionId, statusEl);
+        }
+    };
+    statusEl.addEventListener('click', handler);
+    statusEl.addEventListener('keydown', handler);
+    statusEl.dataset.statusDetailBound = 'true';
+}
+
+function updateActionAvailability(actionEl, isOnline){
+    if (!actionEl) return;
+    if (isOnline){
+        actionEl.classList.remove('is-disabled');
+        actionEl.removeAttribute('aria-disabled');
+        actionEl.dataset.portalDisabled = 'false';
+        const originalTitle = actionEl.dataset.originalTitle;
+        if (originalTitle){
+            actionEl.setAttribute('title', originalTitle);
+        }
+        actionEl.setAttribute('aria-expanded', 'false');
+    } else {
+        actionEl.classList.add('is-disabled');
+        actionEl.setAttribute('aria-disabled', 'true');
+        actionEl.dataset.portalDisabled = 'true';
+        actionEl.setAttribute('title', 'Portal belum dapat diakses. Klik untuk melihat detail status.');
+        actionEl.setAttribute('aria-expanded', 'false');
+    }
+}
+
+function syncStatusActionState(statusEl, status){
+    if (!statusEl) return;
+    const targetId = statusEl.getAttribute('data-status-action');
+    if (targetId){
+        const target = document.getElementById(targetId);
+        const record = updateStatusDetailState(targetId, status);
+        if (target){
+            const shouldEnable = status === 'online' || (status === 'checking' && record && record.lastResultState === 'online');
+            updateActionAvailability(target, shouldEnable);
+        }
+        const statusModal = document.getElementById('status-modal');
+        if (statusModal && statusModal.classList.contains('active') && statusModal.getAttribute('data-active-action') === targetId){
+            renderStatusDetailModal(targetId);
+        }
+        renderStatusSnapshot(targetId);
+    }
 }
 
 function createCacheBustedUrl(url){
@@ -702,16 +1008,14 @@ function evaluateServiceStatuses(forceRefresh){
             setStatusIndicator(el, 'offline');
             return;
         }
-        if (!forceRefresh){
-            setStatusIndicator(el, 'checking');
-        }
+        setStatusIndicator(el, 'checking');
         let finalized = false;
         const guardTimer = setTimeout(() => {
             if (finalized) return;
             finalized = true;
             setStatusIndicator(el, 'offline');
         }, STATUS_CHECK_TIMEOUT + 1500);
-        const shouldForce = !!forceRefresh && el.classList.contains('status-checking');
+        const shouldForce = !!forceRefresh;
         requestServiceStatus(url, probeHint, allowOpaque, shouldForce)
             .then(isOnline => {
                 if (finalized) return;
@@ -731,6 +1035,29 @@ function evaluateServiceStatuses(forceRefresh){
 document.addEventListener('DOMContentLoaded', function(){
     evaluateServiceStatuses(false);
     setTimeout(() => evaluateServiceStatuses(true), STATUS_CHECK_TIMEOUT + 2500);
+    if (!statusRefreshIntervalId && typeof window.setInterval === 'function'){
+        statusRefreshIntervalId = window.setInterval(() => evaluateServiceStatuses(true), STATUS_AUTO_REFRESH_INTERVAL);
+    }
+});
+
+document.addEventListener('DOMContentLoaded', function(){
+    const refreshBtn = document.getElementById('status-modal-refresh');
+    if (!refreshBtn) return;
+    refreshBtn.addEventListener('click', function(){
+        const targetId = this.dataset.statusTarget || '';
+        const statusEl = targetId ? document.querySelector(`[data-status-action="${targetId}"]`) : null;
+        if (statusEl){
+            setStatusIndicator(statusEl, 'checking');
+        }
+        renderStatusDetailModal(targetId);
+        this.classList.add('is-busy');
+        this.disabled = true;
+        evaluateServiceStatuses(true);
+        setTimeout(() => {
+            this.classList.remove('is-busy');
+            this.disabled = false;
+        }, STATUS_CHECK_TIMEOUT + 300);
+    });
 });
 
 window.addEventListener('focus', () => evaluateServiceStatuses(true));

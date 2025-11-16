@@ -4,10 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, follow">
-    <meta name="description" content="Panel Erapor SMKN 1 Telagasari · pantau status versi E-Rapor terbaru dan akses sesuai tahun ajaran.">
-    <meta property="og:title" content="Panel Erapor SMKN 1 Telagasari">
-    <meta property="og:description" content="Panel Erapor SMKN 1 Telagasari · pantau status versi E-Rapor terbaru dan akses sesuai tahun ajaran.">
+    <meta name="description" content="Panel E-Rapor SMKN 1 Telagasari untuk guru dan admin: cek status server secara real-time, akses portal aman tiap tahun ajaran, dan dapatkan panduan akun Kurikulum Merdeka maupun E-Rapor SMK.">
+    <meta property="og:title" content="Panel E-Rapor SMKN 1 Telagasari">
+    <meta property="og:description" content="Pantau status server E-Rapor SMKN 1 Telagasari, temukan link terbaru per tahun ajaran, serta panduan akun Kurikulum Merdeka dan E-Rapor SMK dalam satu panel terpusat.">
     <meta property="og:type" content="website">
+    <meta property="og:url" content="https://rapor.smkn1telagasari.web.id/panel">
+    <meta property="og:site_name" content="SMKN 1 Telagasari">
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="Panel E-Rapor SMKN 1 Telagasari">
+    <meta property="twitter:description" content="Portal resmi untuk memantau status E-Rapor SMKN 1 Telagasari, membuka link sesuai tahun ajaran, dan mengikuti panduan akses akun guru.">
+    <link rel="canonical" href="https://rapor.smkn1telagasari.web.id/panel">
     <title>Panel Erapor SMKN 1 Telagasari</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -66,7 +72,7 @@
                 </div>
                 <div class="erapor-result is-current" id="erapor-result">
                     <h3 id="erapor-result-title">2025/2026 • Semester Ganjil</h3>
-                    <span class="app-status status-checking" id="erapor-result-status" data-status-url="https://rapor.smkn1telagasari.web.id/" data-status-allow-opaque="false">Memeriksa status…</span>
+                    <span class="app-status status-checking" id="erapor-result-status" data-status-url="https://rapor.smkn1telagasari.web.id/" data-status-allow-opaque="false" data-status-detail role="button" tabindex="0" aria-haspopup="dialog" aria-expanded="false" aria-label="Lihat detail status layanan">Memeriksa status…</span>
                     <div class="result-actions">
                         <a href="https://rapor.smkn1telagasari.web.id/" class="erapor-action" id="erapor-result-link" target="_blank" rel="noopener" data-loading-link data-loading-text="Menghubungkan ke portal 2025/2026 • Semester Ganjil…" data-loading-target="_blank">
                             <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
@@ -93,6 +99,46 @@
             <span class="redirect-spinner" aria-hidden="true"></span>
             <p class="redirect-message" data-loading-message>Mengarahkan ke layanan…</p>
             <small class="redirect-note">Jendela baru akan terbuka otomatis.</small>
+        </div>
+    </div>
+
+    <div id="status-modal" class="modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="status-modal-title">
+        <div class="modal-content status-modal-content">
+            <div class="modal-header">
+                <h3 id="status-modal-title">Status Portal E-Rapor</h3>
+                <button type="button" class="close-btn" data-close="status-modal" aria-label="Tutup dialog status">
+                    <i class="fas fa-xmark" aria-hidden="true"></i>
+                </button>
+            </div>
+            <div class="modal-body status-modal-body">
+                <p class="status-modal-meta" id="status-modal-meta"></p>
+                <div class="status-modal-pill" id="status-modal-state" role="status">Memuat status…</div>
+                <p class="status-modal-description" id="status-modal-description"></p>
+                <div class="status-modal-note" id="status-modal-note"></div>
+                <p class="status-modal-url" id="status-modal-url"></p>
+                <div class="status-modal-timestamps">
+                    <p><strong>Pemeriksaan terakhir:</strong> <span id="status-modal-last-checked">-</span></p>
+                    <p id="status-modal-last-result" class="status-modal-last-result"></p>
+                </div>
+                <div class="status-modal-actions">
+                    <a href="#" id="status-modal-open-link" class="status-modal-open" target="_blank" rel="noopener">
+                        <i class="fas fa-arrow-up-right-from-square" aria-hidden="true"></i>
+                        <span>Buka Portal</span>
+                    </a>
+                    <button type="button" class="status-modal-refresh" id="status-modal-refresh">
+                        <i class="fas fa-arrows-rotate" aria-hidden="true"></i>
+                        <span>Periksa ulang sekarang</span>
+                    </button>
+                </div>
+                <div class="status-modal-help" id="status-modal-help">
+                    <p><strong>Tips:</strong></p>
+                    <ul>
+                        <li>Pastikan koneksi internet stabil sebelum mencoba kembali.</li>
+                        <li>Jika status tetap merah lebih dari 15 menit, informasikan ke admin.</li>
+                        <li>Gunakan tombol salin tautan jika perlu membagikan URL ke tim.</li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
 
